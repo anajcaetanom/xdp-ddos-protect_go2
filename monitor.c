@@ -88,7 +88,7 @@ int main()
                         );                    
                     }
 
-                    else (value.packet_count > RATE_LIMIT + 1) {
+                    else {
                         printf (
                             "%s [BLACKLISTED] \n",
                             inet_ntoa(ip_addr)
