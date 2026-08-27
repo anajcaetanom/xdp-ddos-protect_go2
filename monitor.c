@@ -34,14 +34,12 @@ int main()
 
     printf("Mapas abertos com sucesso!\n");
 
-
- __u32 key;
+    __u32 key;
     __u32 next_key;
 
     int strikes[MAX_IPS] = {0};
 
     while (1) {
-
         int result;
 
         result = bpf_map_get_next_key(
@@ -51,9 +49,7 @@ int main()
         );
 
         while (result == 0) {
-
             struct rate_limit_entry value;
-
             if (
                 bpf_map_lookup_elem(
                     rate_fd,
@@ -74,7 +70,6 @@ int main()
                 if (value.packet_count > RATE_LIMIT) {
 
                     int index = next_key % MAX_IPS;
-
                     strikes[index]++;
 
                     printf(
@@ -84,7 +79,6 @@ int main()
                     );
 
                     if (strikes[index] >= MAX_STRIKES) {
-
                         __u8 blocked = 1;
 
                         if (
@@ -102,13 +96,9 @@ int main()
                             );
 
                         } else {
-
-                            perror(
-                                "Erro ao adicionar IP na blacklist"
-                            );
+                            perror("Erro ao adicionar IP na blacklist");
                         }
                     }
-
                 }
             }
 

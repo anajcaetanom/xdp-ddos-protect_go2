@@ -90,7 +90,7 @@ int xdp_prog(struct xdp_md *ctx)
         return XDP_PASS;
 
     // Apenas IPv4
-    if (eth->h_proto != __bpf_htons(ETH_P_IP))
+    if (eth->h_proto != bpf_htons(ETH_P_IP))
         return XDP_PASS;
 
     // IP Header
@@ -104,7 +104,7 @@ int xdp_prog(struct xdp_md *ctx)
         return XDP_PASS;
 
     // ICMP Header
-    struct icmphdr *icmp = (void *)ip + sizeof(*ip);
+    struct icmphdr *icmp = (void *)ip + ip->ihl * 4;
 
     if ((void *)(icmp + 1) > data_end)
         return XDP_PASS;
