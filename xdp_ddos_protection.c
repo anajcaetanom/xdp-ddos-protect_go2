@@ -118,8 +118,15 @@ int xdp_prog(struct xdp_md *ctx)
     // Verifica blacklist
     __u8 *blocked = bpf_map_lookup_elem(&blacklist_map, &src_ip);
 
-    if (blocked)
+    if (blocked) {
+        struct rate_limit_entry *entry;
+
+        entry = bpf_map_lookup_elem(&rate_limit_map, &src_ip);
+
+        if (entry) entry->packet_count++;
+        
         return XDP_DROP;
+    }
 
     // Procura entrada
     struct rate_limit_entry *entry;

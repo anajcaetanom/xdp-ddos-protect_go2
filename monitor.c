@@ -14,7 +14,6 @@ typedef signed long long    __s64;
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
 
-#define MAX_STRIKES 5
 #define MAX_IPS 1024
 #define RATE_LIMIT 3
 
@@ -27,6 +26,7 @@ int main()
 {
     int rate_fd;
     int blacklist_fd;
+    unsigned int last_count[MAX_IPS] = {0};
 
     rate_fd = bpf_obj_get("/sys/fs/bpf/rate_limit_map");
 
@@ -47,8 +47,6 @@ int main()
     __u32 key;
     __u32 next_key;
 
-    int strikes[MAX_IPS] = {0};
-
     while (1) {
         int result;
 
@@ -60,6 +58,7 @@ int main()
 
         while (result == 0) {
             struct rate_limit_entry value;
+
             if (
                 bpf_map_lookup_elem(
                     rate_fd,
@@ -68,48 +67,36 @@ int main()
                 ) == 0
             ) {
 
+                int index = next_key % MAX_IPS;
                 struct in_addr ip_addr;
                 ip_addr.s_addr = next_key;
 
-                printf(
-                    "PING de %s -> %u pacotes\n",
-                    inet_ntoa(ip_addr),
-                    value.packet_count
-                );
+                if (value.packet_count != last_count[index]) {
+                    if (value.packet_count <= RATE_LIMIT) {
+                        printf(
+                            "PING de %s -> %u pacotes\n",
+                            inet_ntoa(ip_addr),
+                            value.packet_count
+                        );
+                    }                
 
-                if (value.packet_count > RATE_LIMIT) {
-
-                    int index = next_key % MAX_IPS;
-                    strikes[index]++;
-
-                    printf(
-                        "[STRIKE %d] %s\n",
-                        strikes[index],
-                        inet_ntoa(ip_addr)
-                    );
-
-                    if (strikes[index] >= MAX_STRIKES) {
-                        __u8 blocked = 1;
-
-                        if (
-                            bpf_map_update_elem(
-                                blacklist_fd,
-                                &next_key,
-                                &blocked,
-                                BPF_ANY
-                            ) == 0
-                        ) {
-
-                            printf(
-                                "[BLACKLISTED] %s\n",
-                                inet_ntoa(ip_addr)
-                            );
-
-                        } else {
-                            perror("Erro ao adicionar IP na blacklist");
-                        }
+                    else if (value.packet_count == RATE_LIMIT + 1) {
+                        printf(
+                            "PING de %s -> %u pacotes. [STRIKE] limite excedido\n",
+                            inet_ntoa(ip_addr),
+                            value.packet_count
+                        );                    
                     }
-                }
+
+                    else (value.packet_count > RATE_LIMIT + 1) {
+                        printf (
+                            "%s [BLACKLISTED] \n",
+                            inet_ntoa(ip_addr)
+                        );  
+                    }
+
+                    last_count[index] = value.packet_count;
+                }                
             }
 
             key = next_key;
@@ -121,7 +108,7 @@ int main()
             );
         }
 
-        sleep(1);
+        usleep(1000);
     }
 
     return 0;
