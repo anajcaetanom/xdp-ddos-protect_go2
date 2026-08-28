@@ -4,7 +4,7 @@
 ### Compila o código xdp
 
 ```bash
-clang -O2 -g -target bpf -I/usr/include/$(uname -m)-linux-gnu -c xdp_ddos_protection.c -o xdp_ddos_protection.o
+clang -O2 -target bpf -I/usr/include/$(uname -m)-linux-gnu -c xdp_ddos_protection.c -o xdp_ddos_protection.o
 ```
 
 ### Attach na interface de rede

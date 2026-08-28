@@ -63,19 +63,27 @@ struct rate_limit_entry {
     __u32 packet_count;
 };
 
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 1024);
-    __type(key, __u32);
-    __type(value, struct rate_limit_entry);
-} rate_limit_map SEC(".maps");
+struct bpf_map_def {
+    __u32 type;
+    __u32 key_size;
+    __u32 value_size;
+    __u32 max_entries;
+    __u32 map_flags;
+};
 
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 1024);
-    __type(key, __u32);
-    __type(value, __u8);
-} blacklist_map SEC(".maps");
+struct bpf_map_def SEC("maps") rate_limit_map = {
+    .type = BPF_MAP_TYPE_HASH,
+    .max_entries = 1024,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(struct rate_limit_entry)
+};
+
+struct bpf_map_def SEC("maps") blacklist_map = {
+    .type = BPF_MAP_TYPE_HASH,
+    .max_entries = 1024,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(__u8)
+};
 
 SEC("xdp")
 int xdp_prog(struct xdp_md *ctx)
