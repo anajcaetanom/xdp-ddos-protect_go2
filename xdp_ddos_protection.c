@@ -63,14 +63,6 @@ struct rate_limit_entry {
     __u32 packet_count;
 };
 
-struct bpf_map_def {
-    __u32 type;
-    __u32 key_size;
-    __u32 value_size;
-    __u32 max_entries;
-    __u32 map_flags;
-};
-
 struct bpf_map_def SEC("maps") rate_limit_map = {
     .type = BPF_MAP_TYPE_HASH,
     .max_entries = 1024,
