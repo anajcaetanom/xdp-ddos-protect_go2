@@ -1,24 +1,58 @@
-typedef unsigned char       __u8;
-typedef unsigned short      __u16;
-typedef unsigned int        __u32;
-typedef unsigned long long  __u64;
-
-typedef signed char         __s8;
-typedef signed short        __s16;
-typedef signed int          __s32;
-typedef signed long long    __s64;
-
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <linux/bpf.h>
 
-static int pin_map(const char *map_name, const char *pin_path) {
+static int try_pin_map(int fd, struct bpf_map_info *info) {
+    const char *pin_path = NULL;
+
+    if (
+        info->type == BPF_MAP_TYPE_HASH &&
+        info->key_size == 4 &&
+        info->value_size == 16 &&
+        info->max_entries == 1024
+    ) {
+        pin_path = "/sys/fs/bpf/rate_limit_map";
+    }
+
+    else if (
+        info->type == BPF_MAP_TYPE_HASH &&
+        info->key_size == 4 &&
+        info->value_size == 1 &&
+        info->max_entries == 1024
+    ) {
+        pin_path = "/sys/fs/bpf/blacklist_map";
+    }
+
+    else {
+        return 0;
+    }
+
+    if (bpf_obj_pin(fd, pin_path) == 0) {
+        printf("map pinado em %s\n", pin_path);
+        return 1;
+    }
+
+    if (errno == EEXIST) {
+        printf("map ja pinado em %s\n", pin_path);
+        return 1;
+    }
+
+    perror("bpf_obj_pin");
+    return -1;
+}
+
+int main(void) {
     __u32 id = 0;
 
+    int rate_found = 0;
+    int blacklist_found = 0;
+
     while (bpf_map_get_next_id(id, &id) == 0) {
+
         int fd = bpf_map_get_fd_by_id(id);
 
         if (fd < 0)
@@ -28,47 +62,36 @@ static int pin_map(const char *map_name, const char *pin_path) {
         __u32 len = sizeof(info);
 
         if (bpf_obj_get_info_by_fd(fd, &info, &len) == 0) {
-            if (strcmp(info.name, map_name) == 0) {
 
-                if (bpf_obj_pin(fd, pin_path) == 0) {
-                    printf("%s pinado em %s\n", map_name, pin_path);
-                    close(fd);
-                    return 0;
-                }
+            if (
+                info.type == BPF_MAP_TYPE_HASH &&
+                info.key_size == 4 &&
+                info.value_size == 16 &&
+                info.max_entries == 1024
+            ) {
+                if (try_pin_map(fd, &info) > 0)
+                    rate_found = 1;
+            }
 
-                if (errno == EEXIST) {
-                    printf("%s ja esta pinado em %s\n", map_name, pin_path);
-                    close(fd);
-                    return 0;
-                }
-
-                perror("bpf_obj_pin");
-                close(fd);
-                return -1;
+            else if (
+                info.type == BPF_MAP_TYPE_HASH &&
+                info.key_size == 4 &&
+                info.value_size == 1 &&
+                info.max_entries == 1024
+            ) {
+                if (try_pin_map(fd, &info) > 0)
+                    blacklist_found = 1;
             }
         }
 
         close(fd);
     }
 
-    printf("mapa %s nao encontrado\n", map_name);
-    return -1;
-}
+    if (!rate_found)
+        printf("rate_limit_map nao encontrado\n");
 
-int main(void) {
-    int ret = 0;
+    if (!blacklist_found)
+        printf("blacklist_map nao encontrado\n");
 
-    if (pin_map(
-        "rate_limit_map",
-        "/sys/fs/bpf/rate_limit_map"
-    ) < 0)
-        ret = 1;
-
-    if (pin_map(
-        "blacklist_map",
-        "/sys/fs/bpf/blacklist_map"
-    ) < 0)
-        ret = 1;
-
-    return ret;
+    return 0;
 }
